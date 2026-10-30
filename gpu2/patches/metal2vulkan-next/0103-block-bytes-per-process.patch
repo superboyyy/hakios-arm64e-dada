@@ -1,0 +1,36 @@
+diff --git a/crates/metal2vulkan-runtime/src/memory.rs b/crates/metal2vulkan-runtime/src/memory.rs
+index de3df1e..a5c0ee7 100644
+--- a/crates/metal2vulkan-runtime/src/memory.rs
++++ b/crates/metal2vulkan-runtime/src/memory.rs
+@@ -49,7 +49,22 @@ use std::sync::Arc;
+ use std::sync::Mutex;
+ 
+ /// The size of a pooled block, at most the device's `maxMemoryAllocationSize`.
++// dada: 8 MiB, not 64: the kernel refuses a 64 MiB buffer to the system's small sandboxed Metal clients (posters, widgets: g2vk8,
++// kIOReturnNoMemory), and every one of them had its first allocation refused.
+ pub(super) const BLOCK_BYTES: u64 = 64 << 20;
++/// dada: the pooled block's size for this process: `M2V_BLOCK_MB` (the Metal plugin sets 8 for the system's small sandboxed clients,
++/// whose 64 MiB allocations the kernel refuses), else [`BLOCK_BYTES`]. 8 MiB everywhere made every full-screen texture of the render
++/// server (12.6 MB) a dedicated allocation of its own, about 2 ms each (g2vk19: 238 textures in 10 s).
++pub(super) fn block_bytes() -> u64 {
++    static BYTES: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
++    *BYTES.get_or_init(|| {
++        std::env::var("M2V_BLOCK_MB")
++            .ok()
++            .and_then(|v| v.parse::<u64>().ok())
++            .filter(|&mb| (1..=256).contains(&mb))
++            .map_or(BLOCK_BYTES, |mb| mb << 20)
++    })
++}
+ 
+ /// What memory a resource needs.
+ #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+@@ -689,7 +704,7 @@ impl Memory {
+                 .map(|_| Pool::default())
+                 .collect(),
+             types,
+-            block_bytes: BLOCK_BYTES.min(max_allocation.max(1)),
++            block_bytes: block_bytes().min(max_allocation.max(1)),
+             device_address,
+             address_types: None,
+             kept: None,

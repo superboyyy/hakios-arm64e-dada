@@ -1,0 +1,100 @@
+aa300be 2026-10-30 dada modem: others' IPCC rings left pending until the modem is up (clearing them from the start kept it from READY)
+fd2894d 2026-10-30 dada mpss: GLINK + QRTR with the modem (dadampss_link, default 1)
+6972025 2026-10-30 dada wifi: dadawifi_vcmode=N (pdev param 0x9a, cld3's gConfigVCmode)
+20d171e 2026-10-30 dada wifi: dadawifi_credits=N, HTC transmit credits capped (Android: gWmiCreditCount=1)
+696033b 2026-10-30 dada: with dadampss=1 the Wi-Fi/BT thread waits for the modem to settle
+81cfb15 2026-10-30 dada modem: UP (READY+HANDOVER in 1.7 s) once its IPCC doorbells to us are enabled; on by default
+3088ec2 2026-10-30 dada modem: dadampss_ipcc
+b4b0670 2026-10-30 dada modem: watch IPCC for the modem's doorbells
+0fdd076 2026-10-30 dada modem: dadampss_cx
+81ca2f1 2026-10-30 dada modem: its path to DDR voted (MC0, SH0, ACV)
+178fd95 2026-10-30 dada modem: our SMP2P item (428) made before the modem starts
+1b7367d 2026-10-30 dada modem: wait 60 s, then the partition's items and the crash reason
+fdf98c8 2026-10-30 dada modem: aligned stores into the device-mapped header and carveout
+0d06291 2026-10-30 dada modem: the image header below 4 GB (lowdma + 2 MB)
+aa0e7cd 2026-10-30 dada modem: dadampss_nodtb / dadampss_dtbany, the whole x0
+a1defc8 2026-10-30 dada modem: dadampss=1, MPSS booted through TrustZone PAS and watched for READY
+cadbd61 2026-10-30 dada wifi: dadawifi_coexidle=1, the coex UARTs at their idle level before WLAN_EN
+6cf0f98 2026-10-30 dada wifi: the coex UART pins (gpio148..151) in the stuck dump
+fe6d8dc 2026-10-30 dada camera: dadacam_hwctl_off
+c410364 2026-10-30 dada camera: an MX vote (dadacam_mx), MCLK0 as a test
+0e206a2 2026-10-30 dada camera: dump the MCLK controller
+688eeb8 2026-10-30 dada camera: sample the MCLK pad
+d3e7cb7 2026-10-30 dada camera: MCLK1's root forced on, the controller's sleep clock
+ee3c9a5 2026-10-30 rpmh: names of 8 characters (mmcx.lvl) were cut to 7 in the command database lookup
+68197e9 2026-10-30 dada camera: start 40 s later (dadacam_delay)
+6fcac4b 2026-10-30 dada camera: a wait after the reset pin, dadacam_egpio, dadacam_skip
+a568db7 2026-10-30 dada camera: GCC camera branches and an MMCX vote before the MCLK controller, step lines
+70bb817 2026-10-30 dada camera: dadacam=1, the wide sensor powered up and its chip ID read by hand
+c915ef0 2026-10-30 dada mic: the self-test times from the open
+5b9c266 2026-10-30 dada audio: time the DSP's slow answers, and the mic graphs' start
+ebb0e80 2026-10-30 dada mic: close the capture graphs after stopping them
+2380a63 2026-10-30 dada mic: dadamic_selftest
+8e99263 2026-10-30 dada mic: dadamic=3, /dev/redwood-mic for RedwoodAudio.driver's Codec input (the path up on first open, graphs while open)
+7219d99 2026-10-30 dada mic: the VA macro's SoundWire mic clocks (divider 1), a codec register dump, dadamic_chen
+fc4776d 2026-10-30 dada mic: dadamic=2, the analog mics through WCD9395 over the VA-region SoundWire master into the TX macro
+f1f5e77 2026-10-30 dada mic: take the DMICs out of reset (VA DMIC_CFG bit 7)
+248e509 2026-10-30 dada audio: mic test sweeps DMIC0..7 (all four pin pairs and DMIC clocks on)
+fdf0a15 2026-10-30 dada audio: microphone test (dadamic=1): PRM votes + VA core clock, DMIC0/1 pins, VA macro DMIC0 -> DEC0, capture graphs, 2 s of reads with level stats
+708a8d6 2026-10-30 dada wifi: dadawifi_pollus (the driver loop's idle pause)
+a56ac20 2026-10-30 dada wifi: dadawifi_noclkgate (aggre_noc_pcie_axi / qmip_pcie_ahb hardware clock gating off)
+0bc6447 2026-10-30 dada wifi: dadawifi_features / dadawifi_nocbc knobs (mk-ath12k.sh 23/24) to mirror the Pad 8 Pro's working setup
+f3f7b92 2026-10-30 dada wifi: MHI-reset skip after a cycle is opt-in (dadawifi_skipreset=1): it stalled the phone in w95a1
+018f87b 2026-10-30 dada wifi: skip the driver's MHI reset right after a cold power cycle (mk-ath12k.sh 22), so recovery can retry
+e9b963d 2026-10-30 dada bt: log the chip's refused commands
+82acb96 2026-10-30 dada bt: dadabt_short= opcodes answered with the status alone
+d4efc6c 2026-10-30 dada bt: answer all OGF 0x3f vendor commands, with an echo and 8 zero bytes after the status
+93d314e 2026-10-30 dada bt: supported-commands patch on the byte stream (the answer arrives in pieces)
+12e355f 2026-10-30 dada bt: the local Read Default Erroneous Data Reporting answer carries its byte
+3cfa242 2026-10-30 dada bt: mark erroneous data reporting supported in the chip's supported-commands answer (answered locally)
+c992792 2026-10-30 dada bt: answer Write Default Erroneous Data Reporting (0x0c5b) and dadabt_fake= opcodes locally
+3c4525a 2026-10-30 dada bt: Skywalk kernel-pipe nexus for com.apple.uart.sk.bluetooth (bluetoothd's H4 channel), its UUID through socket option 0x5412
+735c521 2026-10-30 dada bt: kernel control com.apple.uart.sk.bluetooth (iOS 26 bluetoothd's H4/POSIX transport) bridged to the chip's UART
+3f1060d 2026-10-30 exec_env: several variables (;), ~ for a space
+9e8f954 2026-10-30 exec_swap=NAME:PATH boot-arg: run a program of that name from PATH (BlueTool -> ours)
+cba7391 2026-10-30 exec_env=NAME:VAR=VALUE boot-arg: an environment variable for programs of that name (jobs on the system image)
+f39e336 2026-10-30 exec_log=NAME boot-arg: print the path each program of that name is started from
+cc6370d 2026-10-30 dada wifi: dadawifi_antshare (vdd-wlan-ant-share LDO K6 alone), dadawifi_bd board file choice
+0aee73c 2026-10-30 dada bt: /dev/uart.bluetooth answers bluetoothd's Broadcom vendor commands itself (dadabt_vsc=0 sends them)
+c16d332 2026-10-30 dada wifi: dadawifi_nmmodem knob (mk-ath12k.sh 21: HOST_CSTATE + internal sleep clock, as the mainline wcn7860 entry)
+81fb257 2026-10-30 dada governor: frequency ceilings (dadacpu_khz=2400000, dadagpu_mhz=660 by default), cooler thresholds (GPU 75/70/85 C, CPU +10, any sensor 95 C, dadaanyhot)
+6f3a374 2026-10-30 dada wifi: dadawifi_sar (qcacld's SAR TX power limit) and dadawifi_passive knobs (mk-ath12k.sh 19/20)
+207e3e4 2026-10-30 apple80211: take iOS 26's longer SCAN_REQ (5528 bytes), reading the known leading fields
+9a57074 2026-10-30 dada wifi: dadawifi_noidleps / dadawifi_hwmode knobs (mk-ath12k.sh 17/18), control pins in the stuck dump
+a6ab3f3 2026-10-29 scale_setup: say what task_max/thread_max were worked out from
+2c7a2b3 2026-10-29 scale_setup: boot-arg dada_wp=1 sets a hardware store watchpoint on thread_max (who corrupts it before ulock_initialize)
+97fce3a 2026-10-29 scale_setup: task_max/thread_max garbage (written early by something, twice in ~20 boots) said with its neighbourhood and reset, not a 16 GB ulock hash panic
+bd3b97e 2026-10-29 dada: touch boost (dadaboost=1500 ms: CPUs to sustained top, GPU >= 734 MHz after a touch); exec_deny (default PerfPowerServices)
+69c64b0 2026-10-29 dada GPU: dadagpu_bin=BIN gives the speed bin (fuse read off by default: it stopped the SoC); preemption on by default
+67c2fbe 2026-10-29 dada DPU: flips return at once (dadascan_async=1); the last flip is seen taken before its buffer is written again
+65b603b 2026-10-29 RedwoodGPU: GPU_SUBMIT_BO_TRACK buffers mark surfaces drawn without a cache push; flicker-hunt logs (surface buffers, last swap's submission)
+049410a 2026-10-29 framebuffer recording: each frame's surface id and GPU submission low bits in its time's top bits
+be9d8b3 2026-10-29 MiniIOSurface: write zeroed surface memory back out of the cache at once (scanout's clean wrote stale zeroes over GPU frames)
+26f0d71 2026-10-29 dada GPU preemption: CNTL read back after the trigger; boot-arg dadagpu_preempt_post=0 makes the postamble a NOP
+95f3a9f 2026-10-29 RedwoodGPU: backboardd to ring 0, everybody else to ring 1; waits that hold with two rings
+9f46eb5 2026-10-29 dada GPU: two rings and hardware preemption (boot-arg dadagpu_preempt, default 0)
+2423f8a 2026-10-29 dada cpu: CPUCP memlat (dadamemlat=1): DDR/LLCC/DDR_QOS follow the CPUs, configured once over SCMI vendor protocol 0x80
+e9de7a9 2026-10-29 dada GPU: DDR bandwidth votes from the GMU, and the speed-bin fuse
+6797e1c 2026-10-29 cputop=S: every S seconds the processes that took the most CPU, by name and pid (who keeps all eight cores busy at boot)
+9a0aafb 2026-10-29 governor: per-domain heat (dadatherm=1, default): GPU by gpuss sensors at 95/90/105 C, CPU domains by their own sensors 10 C higher, 110 C anywhere halves; GPU up to the table's fastest
+56c198d 2026-10-29 restore the dada Wi-Fi/Bluetooth glue lost on 29 Oct (replayed2 copy) and hakios_mhi_boot from unixnu-sheng MhiBoot
+6f71a58 2026-10-29 RedwoodGPU: boot-arg gpu_fair_ms: programs other than backboardd submit once their last submission is done (bounded)
+a09c400 2026-10-29 RedwoodGPU: CPU_PREP waits for the buffer's own last submission (or its surface's), not everybody's
+aa5575c 2026-10-29 governor: heat thresholds as boot-args (dadahot/dadacool/dadatoohot), name the hottest sensor
+85da605 2026-10-29 framebuffer: wait for a surface's new GPU submission before showing it again (flicker)
+4a71f9d 2026-10-29 dada GPU: the GPU's time by process in RedwoodGPU's report
+6bd32cd 2026-10-29 RedwoodGPU: say when the export tunnel is probed and an export begins
+0704ede 2026-10-29 RedwoodGPU: the pipeline-cache export (tunnel method 0x7100 into gpu_export_mb of physical memory, handed to the loader as a recording)
+ff55ea3 2026-10-29 dada GPU: the perf vote as {header, ack_type 1, freq index, bw index} (it sent {header, index, 1, 0}: the core ran at 160 MHz whatever was said)
+148f55b 2026-10-29 exec: applog's programs also get ACTIVITY_LOG_STDERR and CFLOG_FORCE_STDERR (iOS 26's os_log to standard error)
+c3f4896 2026-10-29 MiniIOSurface: the shared event kept by IOSurfaceSendRight in typeless memory (a class of its own panicked g2k17 at boot: KT_ZONES_FOR_SIZE_SIZE)
+4c1ad05 2026-10-29 MiniIOSurface: IOSurfaceSharedEvent (create, map, signal and wait traps, listeners told asynchronously); g2k16's posters failed every AddEventListener and never completed a snapshot
+b2247d7 2026-10-29 dada GPU: 15.5 GB of addresses again (g2k14: 3.5 GB ran out with every poster up, the wallpaper black)
+6034206 2026-10-29 MiniIOSurface: trace port creation and lookup (g2k13: backboardd looked up port 0 for the wallpaper's surfaces)
+6c295c4 2026-10-29 RedwoodGPU: buffers of no task (pageable, wired by prepare), not kernel memory: the shared data range ran out (KERN_NO_SPACE)
+e0dcd5f 2026-10-29 RedwoodGPU: on a refused buffer, kmem_alloc of the same size for its error, and the free and wired page counts
+154e93a 2026-10-29 dada GPU: 3.5 GB address space again while the render server's BO growth is chased (16 GB let it exhaust the kernel)
+964085f 2026-10-29 RedwoodGPU: kRedwoodHost (0x7c), the caller's own pages as a buffer, pushed out of the cache for every submission naming it
+b3a2e26 2026-10-29 dada GPU: a 16 GB address space (8192 tables), tables found by hash, only written tables pushed to the SMMU
+06c6d04 2026-10-29 hakios_dada_wifi.c: a stand-in until the second replay restores the driver (the replayed one diverged)
+51eebd9 2026-10-29 dada xnu-12377 tree rebuilt by replaying the session transcripts (rebuild/replay.py); WiFi driver diverges from op 2315 on

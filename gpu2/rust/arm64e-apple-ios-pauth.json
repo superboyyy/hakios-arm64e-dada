@@ -1,0 +1,58 @@
+{
+ "abi-return-struct-as-int": true,
+ "arch": "aarch64",
+ "archive-format": "darwin",
+ "binary-format": "mach-o",
+ "cpu": "apple-a12",
+ "crt-objects-fallback": "false",
+ "data-layout": "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-n32:64-S128-Fn32",
+ "debuginfo-kind": "dwarf-dsym",
+ "dll-suffix": ".dylib",
+ "dynamic-linking": true,
+ "eh-frame-header": false,
+ "emit-debug-gdb-scripts": false,
+ "features": "+neon,+apple-a12,+v8.3a,+paca,+pacg",
+ "frame-pointer": "non-leaf",
+ "function-sections": false,
+ "has-rpath": true,
+ "has-thread-local": true,
+ "is-like-darwin": true,
+ "link-env": [
+  "ZERO_AR_DATE=1"
+ ],
+ "link-env-remove": [
+  "MACOSX_DEPLOYMENT_TARGET"
+ ],
+ "linker-flavor": "darwin-cc",
+ "linker-is-gnu": false,
+ "lld-flavor": "darwin",
+ "llvm-target": "arm64e-apple-ios",
+ "max-atomic-width": 128,
+ "metadata": {
+  "description": "ARM64e Apple iOS",
+  "host_tools": false,
+  "std": true,
+  "tier": 3
+ },
+ "os": "ios",
+ "split-debuginfo": "packed",
+ "stack-probes": {
+  "kind": "inline"
+ },
+ "supported-sanitizers": [
+  "address",
+  "thread"
+ ],
+ "supported-split-debuginfo": [
+  "packed",
+  "unpacked",
+  "off"
+ ],
+ "target-family": [
+  "unix"
+ ],
+ "target-pointer-width": 64,
+ "vendor": "apple",
+ "abi": "pauthtest",
+ "llvm-abiname": "pauthtest"
+}

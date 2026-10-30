@@ -1,0 +1,42 @@
+diff --git a/crates/metal2vulkan/src/lower/access/blob.rs b/crates/metal2vulkan/src/lower/access/blob.rs
+index 1ed5aed..8052d5a 100644
+--- a/crates/metal2vulkan/src/lower/access/blob.rs
++++ b/crates/metal2vulkan/src/lower/access/blob.rs
+@@ -169,10 +169,36 @@ pub fn blob_ptr(cx: &SelectCx<'_>, v: Value) -> Result<LocalPtr, Error> {
+     let Value::Const(c) = v else {
+         return Ok(LocalPtr::Value(operand(cx, v)?));
+     };
++    blob_const_offset(cx, c).map(LocalPtr::Offset)
++}
++
++/// The blob offset of pointer constant `c`: a global's address, a pointer cast of one, or a
++/// `getelementptr` constant expression over one at constant indices (Flocon's fragment shaders
++/// hand their helpers `getelementptr (@rampValuesIndex, 0, 0, 0)` and then index from it).
++fn blob_const_offset(cx: &SelectCx<'_>, c: crate::air::ir::ConstId) -> Result<u32, Error> {
++    use crate::air::ir::ConstExpr;
+     match cx.entry.module.consts().get(c).map(|k| &k.value) {
+         Some(Const::GlobalAddr(g)) => {
+             let off = global_offset(cx.memory, *g).ok_or_else(refuse)?;
+-            Ok(LocalPtr::Offset(u32::try_from(off).map_err(|_| refuse())?))
++            u32::try_from(off).map_err(|_| refuse())
++        }
++        Some(Const::Expr(ConstExpr::Cast {
++            op: CastOp::Bitcast | CastOp::AddrSpaceCast,
++            ops,
++        })) => blob_const_offset(cx, ops[0]),
++        Some(Const::Expr(ConstExpr::Gep { src_ty, ops, .. })) => {
++            let (base, idx) = ops.split_first().ok_or_else(refuse)?;
++            let base = blob_const_offset(cx, *base)?;
++            let idx: Vec<Value> = idx.iter().map(|&i| Value::Const(i)).collect();
++            let (delta, strides) = crate::memory::provenance::gep_displacement(
++                cx.entry,
++                &cx.memory.layouts,
++                *src_ty,
++                &idx,
++            )?;
++            let delta = delta.filter(|_| strides.is_empty()).ok_or_else(refuse)?;
++            let off = i64::from(base).checked_add(delta).ok_or_else(refuse)?;
++            u32::try_from(off).map_err(|_| refuse())
+         }
+         _ => Err(refuse()),
+     }

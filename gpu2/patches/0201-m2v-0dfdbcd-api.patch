@@ -1,0 +1,61 @@
+--- a/bridge/NativeMetalObjects.rs
++++ b/bridge/NativeMetalObjects.rs
+@@ -19,7 +19,7 @@
+ use metal2vulkan_runtime::{
+     BinaryArchive, BinaryArchiveDescriptor, BlitCommandEncoder, FamilyRow, FeatureRow, GpuFamily, RowState, BlitOption, Buffer, ClearColor, CommandBuffer, CommandQueue, ComputeCommandEncoder,
+     ComputePipelineState, Deallocator, DebugMessage, DepthStencilState, Device, DeviceOptions, MessageSeverity, MessageSink, Event, EventRef, Fence, Function, Heap, HeapDescriptor, HeapType, HostMemory, IoSurfacePlane, IoSurfaceYCbCr, Library, LoadAction,
+-    MetalLevel, Origin, PipelineOption, PipelineOptions, PurgeableState, PrivateCount, PrivateFlag, PrivateProperties, MAX_COLOR_ATTACHMENTS, Region, RenderCommandEncoder, RenderPassDescriptor, RenderPipelineState, ResourceOptions,
++    Origin, PipelineOption, PipelineOptions, PurgeableState, PrivateCount, PrivateFlag, PrivateProperties, MAX_COLOR_ATTACHMENTS, Region, RenderCommandEncoder, RenderPassDescriptor, RenderPipelineState, ResourceOptions,
+     SamplerState, ScissorRect, SharedEvent, SharedEventListener, Size, StoreAction, Texture, TextureDescriptor, Viewport, VisibilityResultMode,
+ };
+ use std::cell::RefCell;
+@@ -161,18 +161,10 @@
+         let (loader, cache) = unsafe { (CStr::from_ptr(loader), CStr::from_ptr(cache)) };
+         let mut options = DeviceOptions::default();
+         options.loader = Some(PathBuf::from(loader.to_string_lossy().into_owned()));
+-        options.metal_level = Some(MetalLevel::NEWEST);
+         options.shader_cache = metal2vulkan_runtime::ShaderCacheOptions::in_directory(cache.to_string_lossy().into_owned());
+         options.messages = Some(MessageSink::new(observe_message));
+-        // data-a-live: padded targets render in place where Turnip's stores, aligned to 16 x 4 texels
+-        // at an image's edge, stay in their rows (tools/metal/adapt_ios16.py); pandora_m2v_padded=shadow keeps shadows.
+-        if !pandora_boot_arg_is("pandora_m2v_padded", "shadow") {
+-            options.policy.padded_targets = metal2vulkan::device::PaddedTargetsPolicy::Alias;
+-            options.render_store_alignment = Some([16, 4]);
+-        }
+-        // data-a-live: this frontend never rebinds a no-copy buffer (NativeMetalObjects.h), so the
+-        // encoders need not log their calls for one (m2v 0006); pandora_m2v_rebinds=allow keeps the logs.
+-        options.refuse_rebinds = !pandora_boot_arg_is("pandora_m2v_rebinds", "allow");
++        // metal2vulkan 0dfdbcd+ (gpu2 next): upstream rebuilt the padded-row aliasing and the rebind logs, so Data A Live's
++        // padded_targets/render_store_alignment/refuse_rebinds knobs are gone; textures over padded rows take the runtime's shadows.
+         Ok(boxed(NmbDevice(Device::system_default_with(&options).map_err(e("device"))?, std::sync::OnceLock::new(), std::sync::Mutex::new(()))))
+     })
+ }
+@@ -1554,7 +1546,7 @@
+ /// forwards to it).
+ fn listener() -> Result<&'static SharedEventListener, String> {
+     static LISTENER: std::sync::OnceLock<Result<SharedEventListener, String>> = std::sync::OnceLock::new();
+-    LISTENER.get_or_init(|| SharedEventListener::new().map_err(e("listener"))).as_ref().map_err(|why| why.clone())
++    LISTENER.get_or_init(|| Ok(SharedEventListener::new())).as_ref().map_err(|why| why.clone())
+ }
+ 
+ #[unsafe(no_mangle)]
+--- a/bridge/NativeMetalBridge.rs
++++ b/bridge/NativeMetalBridge.rs
+@@ -14,7 +14,7 @@
+ use metal2vulkan::metal::{PixelFormat, PrimitiveType, TextureUsage};
+ use metal2vulkan::pipeline::{ColorAttachmentDescriptor, RenderPipelineDescriptor, StageSource};
+ use metal2vulkan_runtime::{
+-    BlitOption, ClearColor, CommandBuffer, CommandBufferStatus, Device, DeviceOptions, HostMemory, LoadAction, MetalLevel,
++    BlitOption, ClearColor, CommandBuffer, CommandBufferStatus, Device, DeviceOptions, HostMemory, LoadAction,
+     Origin, PipelineOptions, RenderPassDescriptor, ResourceOptions, Size, StoreAction, TextureDescriptor,
+ };
+ use std::ffi::{c_char, c_void, CStr};
+@@ -85,8 +85,6 @@
+ fn open(loader: &CStr, cache: &CStr) -> Result<Device, String> {
+     let mut options = DeviceOptions::default();
+     options.loader = Some(PathBuf::from(loader.to_string_lossy().into_owned()));
+-    // No macOS release names this host; answer as the newest measured Metal.
+-    options.metal_level = Some(MetalLevel::NEWEST);
+     options.shader_cache = metal2vulkan_runtime::ShaderCacheOptions::in_directory(cache.to_string_lossy().into_owned());
+     Device::system_default_with(&options).map_err(|e| format!("device: {e:?}"))
+ }

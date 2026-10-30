@@ -1,0 +1,34 @@
+diff --git a/crates/metal2vulkan/src/memory/plan.rs b/crates/metal2vulkan/src/memory/plan.rs
+index 2045134..8406070 100644
+--- a/crates/metal2vulkan/src/memory/plan.rs
++++ b/crates/metal2vulkan/src/memory/plan.rs
+@@ -254,6 +254,10 @@ pub struct AllocaPlan {
+     pub fragments: bool,
+ }
+ 
++/// The most bytes a constant indexed at run time keeps as a `Private` variable; a larger one is read
++/// from the constant blob.
++const PRIVATE_CONSTANT_BYTES: u64 = 4096;
++
+ /// Where a program-scope constant lives.
+ #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+ pub enum ConstGlobalForm {
+@@ -1018,8 +1022,16 @@ impl Planner<'_> {
+                 let closed = !u.merged && !u.escapes && !u.stored && !u.cross_compare && !u.write;
+                 // A type no typed object holds stays `Private`: selection refuses it, as before,
+                 // which only sends a typed object past the room to the blob.
+-                let form =
+-                    if closed && u.typed && self.fit(global.value_ty, room, m)? != Fit::OverRoom {
++                // A table indexed at run time and past PRIVATE_CONSTANT_BYTES goes to the blob: as a
++                // `Private` variable every thread holds its own copy in scratch memory, which an Adreno
++                // backs per fiber (MercuryPoster's Flocon: 192 KiB of ramp tables a thread, refused).
++                let big = u.indexed
++                    && self.layouts.alloc_size(global.value_ty).unwrap_or(0) > PRIVATE_CONSTANT_BYTES;
++                let form = if closed
++                    && u.typed
++                    && !big
++                    && self.fit(global.value_ty, room, m)? != Fit::OverRoom
++                {
+                         ConstGlobalForm::Private
+                     } else {
+                         let align = self.global_align(g, global.value_ty)?;

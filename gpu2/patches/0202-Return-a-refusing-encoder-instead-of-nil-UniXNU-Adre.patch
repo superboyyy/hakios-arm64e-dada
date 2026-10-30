@@ -1,0 +1,29 @@
+From cc75799a8c45288dcef928ade2db16bfc609a3af Mon Sep 17 00:00:00 2001
+From: Aiden <aiden.jon.huang@gmail.com>
+Date: Thu, 29 Oct 2026 14:18:04 +1100
+Subject: [PATCH 202/203] Return a refusing encoder instead of nil (UniXNU
+ AdrenoMetal 10-25)
+
+---
+ NativeBridgeMetalFrontend.mm | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/NativeBridgeMetalFrontend.mm b/NativeBridgeMetalFrontend.mm
+index 9d74f7b..861d60b 100644
+--- a/NativeBridgeMetalFrontend.mm
++++ b/NativeBridgeMetalFrontend.mm
+@@ -1174,7 +1174,10 @@ - (CFTimeInterval)GPUStartTime {return nmb_command_buffer_gpu_time(_handle,false
+ - (CFTimeInterval)GPUEndTime {return nmb_command_buffer_gpu_time(_handle,true);}
+ - (id)encoder:(NBEncoder *)encoder handle:(NmbEncoder *)handle what:(NSString *)what {
+  if(self.committed){[self refuse:[what stringByAppendingString:@" after commit"]];return nil;}
+- if(!handle){[self refuse:[NSString stringWithFormat:@"%@: %@",what,lastError()]];return nil;}
++ /* A refused encoder is still an object (UniXNU AdrenoMetal, 10-25): its calls fail on the null handle (check: refuses the command buffer
++  * once) and the buffer completes with an error. RenderBox caches the encoder's IMPs with methodForSelector:, and on nil it called
++  * address 0 (sheng i568: WidgetRenderer_Default crashed eight launches running, then hit its open cap and lost the device). */
++ if(!handle){[self refuse:[NSString stringWithFormat:@"%@: %@",what,lastError()]];encoder.commandBuffer=self;return encoder;}
+  encoder.handle=handle;encoder.commandBuffer=self;return encoder;
+ }
+ - (id<MTLComputeCommandEncoder>)computeCommandEncoder {
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,61 @@
+From 49ac62126cb6b171c8b8662d14e509f459a57485 Mon Sep 17 00:00:00 2001
+From: Aiden <aiden.jon.huang@gmail.com>
+Date: Thu, 29 Oct 2026 14:18:15 +1100
+Subject: [PATCH 203/203] Mark each process's first Metal problem on the
+ console (UniXNU AdrenoMetal 10-25)
+
+---
+ NativeBridgeMetalFrontend.h  |  2 ++
+ NativeBridgeMetalFrontend.mm | 13 +++++++++++++
+ 2 files changed, 15 insertions(+)
+
+diff --git a/NativeBridgeMetalFrontend.h b/NativeBridgeMetalFrontend.h
+index 9132e82..0ee4310 100644
+--- a/NativeBridgeMetalFrontend.h
++++ b/NativeBridgeMetalFrontend.h
+@@ -19,6 +19,8 @@ id native_bridge_metal_library_with_air(const void *bytes, size_t length);
+ size_t native_bridge_metal_status(char *out, size_t size);
+ // The pixel formats of the textures asked for (first eight distinct) and how many texture requests the runtime refused.
+ size_t native_bridge_metal_formats(char *out, size_t size);
++// The process's first problem (a refusal or a missing call) into out, and how many problems there were.
++uint64_t native_bridge_metal_first_problem(char *out, size_t size);
+ size_t native_bridge_metal_telemetry(char *out, size_t size);
+ // Structured cumulative artifact/driver-cache counters for offline qualification.
+ struct NmbShaderCacheStats;
+diff --git a/NativeBridgeMetalFrontend.mm b/NativeBridgeMetalFrontend.mm
+index 861d60b..0147c62 100644
+--- a/NativeBridgeMetalFrontend.mm
++++ b/NativeBridgeMetalFrontend.mm
+@@ -113,9 +113,17 @@ static void consoleLine(NSString *text) {
+  NSString *line=[NSString stringWithFormat:@"gpu2-metal[%s %d]: %@\n",getprogname(),getpid(),text];
+  const char *bytes=line.UTF8String;if(bytes)(void)write(fd,bytes,strlen(bytes));
+ }
++// The process's first problem, kept (UniXNU AdrenoMetal, 10-25): a client's first refusal is usually the cause of the rest. Every problem
++// already reaches the console as it happens; this one is marked "first problem" as well, so a run's log names each process's root cause.
++static char gFirstProblem[200];
+ static void noteProblem(NSString *what) {
+  gProblems++;
+  std::lock_guard<std::mutex> lock(gProblemLock);
++ // A device answer the runtime lacks is reported at creation in every process and is harmless: the first problem is the next one.
++ if(!gFirstProblem[0] && ![what hasPrefix:@"native-metal: no device answer"]) {
++  strlcpy(gFirstProblem,what.UTF8String?:"?",sizeof gFirstProblem);
++  consoleLine([@"first problem: " stringByAppendingString:what]);
++ }
+  memcpy(gLastProblems[1],gLastProblems[0],sizeof gLastProblems[0]);
+  strlcpy(gLastProblems[0],what.UTF8String?:"?",sizeof gLastProblems[0]);
+ }
+@@ -2494,6 +2502,11 @@ static size_t native_bridge_metal_formats_locked(char *out,size_t size) {
+  return at;
+ }
+ 
++extern "C" uint64_t native_bridge_metal_first_problem(char *out,size_t size) {
++ std::lock_guard<std::mutex> lock(gProblemLock);
++ if(size)strlcpy(out,gFirstProblem,size);
++ return gProblems.load();
++}
+ extern "C" size_t native_bridge_metal_formats(char *out,size_t size) {
+  std::lock_guard<std::mutex> lock(gProblemLock);
+  return native_bridge_metal_formats_locked(out,size);
+-- 
+2.54.0 (Apple Git-157)
+
