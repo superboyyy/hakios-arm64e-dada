@@ -423,6 +423,67 @@ sub('\tret = ath12k_wmi_pdev_set_param(ar, WMI_PDEV_PARAM_PMF_QOS,\n',
     '\t  if (vc != 0 && ath12k_wmi_pdev_set_param(ar, 0x9a, vc, pdev->pdev_id) != 0) ath12k_warn(ab, \"vc mode %u refused\\\\n\", vc); }\n'
     '\tret = ath12k_wmi_pdev_set_param(ar, WMI_PDEV_PARAM_PMF_QOS,\n')$PY_TAIL"
 
+# 28. The coex configuration cld3 sends after a STA vdev is created (hdd_send_coex_config_params, its ini defaults):
+#     WMI_COEX_CONFIG_CMDID {vdev, type, arg1..6} for TX_POWER(12)=0x0a0a, HANDOVER_RSSI(19)=-80, BTC_MODE(24)=0,
+#     ANTENNA_ISOLATION(25)=25, BT_LOW_RSSI(26)=-65, BT_INTERFERENCE(27)=-25,-21,-20,-16,-15,-11, SCO_ALLOW_2G_SCAN(42)=1.
+#     Here right after VDEV_CREATE, before the parameter burst the firmware dies in. Boot-arg dadawifi_coex=1.
+edit ath12k-src/wmi.c "$PY_HEAD
+sub('int ath12k_wmi_pdev_set_ps_mode(struct ath12k *ar, int vdev_id, u32 enable)\n',
+    'int ath12k_wmi_coex_config(struct ath12k *ar, u32 vdev_id, u32 type, const u32 *args)\t/* tools/mk-ath12k.sh 28 */\n'
+    '{\n'
+    '\tstruct ath12k_wmi_pdev *wmi = ar->wmi;\n'
+    '\tstruct sk_buff *skb = ath12k_wmi_alloc_skb(wmi->wmi_ab, 9 * sizeof(__le32));\n'
+    '\t__le32 *cmd;\n'
+    '\tint ret;\n'
+    '\n'
+    '\tif (!skb)\n'
+    '\t\treturn -ENOMEM;\n'
+    '\tcmd = (__le32 *)skb->data;\n'
+    '\tcmd[0] = ath12k_wmi_tlv_cmd_hdr(WMI_TAG_COEX_CONFIG_CMD, 9 * sizeof(__le32));\n'
+    '\tcmd[1] = cpu_to_le32(vdev_id);\n'
+    '\tcmd[2] = cpu_to_le32(type);\n'
+    '\tfor (int i = 0; i < 6; i++)\n'
+    '\t\tcmd[3 + i] = cpu_to_le32(args[i]);\n'
+    '\tret = ath12k_wmi_cmd_send(wmi, skb, WMI_COEX_CONFIG_CMDID);\n'
+    '\tif (ret)\n'
+    '\t\tdev_kfree_skb(skb);\n'
+    '\treturn ret;\n'
+    '}\n'
+    '\n'
+    'int ath12k_wmi_pdev_set_ps_mode(struct ath12k *ar, int vdev_id, u32 enable)\n')$PY_TAIL"
+edit ath12k-src/mac.c "$PY_HEAD
+sub('\t{ extern void hakios_dada_wifi_settle(void); hakios_dada_wifi_settle(); }\t/* tools/mk-ath12k.sh 15 */\n',
+    '\t{ extern void hakios_dada_wifi_settle(void); hakios_dada_wifi_settle(); }\t/* tools/mk-ath12k.sh 15 */\n'
+    '\t{ extern int hakios_dada_wifi_coex(void); extern int ath12k_wmi_coex_config(struct ath12k *, u32, u32, const u32 *);\t/* 28 */\n'
+    '\t  static const u32 coex[7][7] = { { 12, 0x0a0a }, { 19, (u32)-80 }, { 24, 0 }, { 25, 25 }, { 26, (u32)-65 },\n'
+    '\t\t{ 27, (u32)-25, (u32)-21, (u32)-20, (u32)-16, (u32)-15, (u32)-11 }, { 42, 1 } };\n'
+    '\t  if (hakios_dada_wifi_coex())\n'
+    '\t\tfor (int i = 0; i < 7; i++)\n'
+    '\t\t\tif (ath12k_wmi_coex_config(ar, arvif->vdev_id, coex[i][0], &coex[i][1]))\n'
+    '\t\t\t\tath12k_warn(ab, \"coex config %u not sent\\\\n\", coex[i][0]); }\n')$PY_TAIL"
+
+# 29. At the hang, the firmware made to crash and dump through host SOL (gpio202): cnss2 asserts it "to retry RDDM" when the
+#     MHI way fails (cnss_pci_assert_host_sol) -- and ours (mhi_force_rddm_mode) did fail at the hang. Its dump then says
+#     where the firmware was stuck (rddm_scan). Boot-arg dadawifi_solrddm=1 (no restart then).
+edit src/nw_wifi.c "$PY_HEAD
+sub('  for (int p = 1; p <= 4; p++) ring_state(ab, p);\n',
+    '  for (int p = 1; p <= 4; p++) ring_state(ab, p);\n'
+    '  { extern int hakios_dada_wifi_sol_crash(void); if (hakios_dada_wifi_sol_crash()) { g_wmi_stuck = 3; return; } }\t/* tools/mk-ath12k.sh 29 */\n')$PY_TAIL"
+
+# 30. A trace of the dispatcher while nw_trace is set (tools/ath12k-cbc.py: from the calibration's OFF on): every timer and
+#     queued work it runs, with the time and the function (as an offset from lx_now_ms), to see what runs last before the
+#     cold path dies at its random places.
+mkdir -p gen/shim/src
+cp $W/shim/src/lx_rt.c gen/shim/src/lx_rt.c
+edit shim/src/lx_rt.c "$PY_HEAD
+sub('volatile uint64_t nw_wifi_where[4];\n',
+    'volatile uint64_t nw_wifi_where[4];\nvolatile int nw_trace;\t/* tools/mk-ath12k.sh 30 */\nvolatile int nw_quiet;\t/* 30: no handler is offered a look while set */\n')
+sub('  { static u64 last_raise; u64 t = lx_now_ms(); if (t != last_raise) { last_raise = t; lx_irq_raise_all(); } }\n',
+    '  { static u64 last_raise; u64 t = lx_now_ms(); if (t != last_raise && !nw_quiet) { last_raise = t; lx_irq_raise_all(); } }\n')
+sub('  nw_wifi_where[2] = g_depth; nw_wifi_where[3] = lx_now_ms(); }\n',
+    '  nw_wifi_where[2] = g_depth; nw_wifi_where[3] = lx_now_ms();\n'
+    '  if (nw_trace && (kind == 2 || kind == 3)) lx_log(6, \"trace %llu ms: %s +%#llx depth %d\", (unsigned long long)lx_now_ms(), kind == 2 ? \"timer\" : \"work\", (unsigned long long)nw_wifi_where[1], g_depth); }\n')$PY_TAIL"
+
 # --- compile
 SOURCES="src/nw_crypto src/nw_debug src/nw_mac80211 src/nw_mhi src/nw_net src/nw_pci src/nw_qrtr src/nw_qrtr_mhi src/nw_sta
 	src/nw_wifi shim/src/lx_rt shim/src/mhi_hook"
@@ -462,7 +523,7 @@ done
 # --- one object; what it still asks for must be the kernel's (the C library XNU has under the same names)
 LD=$ROOT/xnu-deps/host/bin/ld64
 $LD -r -arch arm64e obj/*.o -o out/all.o 2> out/ld.err || { cat out/ld.err; exit 1; }
-KERNEL="hakios_dada_wifi_vcmode hakios_dada_wifi_credits hakios_dada_wifi_cycle hakios_dada_wifi_settle hakios_dada_wifi_skip_nss hakios_dada_wifi_idle_ps hakios_dada_wifi_hw_mode hakios_dada_wifi_sar hakios_dada_wifi_passive hakios_dada_wifi_nm_modem hakios_dada_wifi_just_cycled hakios_dada_wifi_features hakios_dada_wifi_no_cbc memcmp memcpy memmove memset strcmp strncmp strlen strnlen strchr strrchr strncpy strlcpy strlcat strtoul bzero
+KERNEL="hakios_dada_wifi_note hakios_dada_wifi_rddm_seen hakios_dada_wifi_cbc_cold hakios_dada_wifi_sol_crash hakios_dada_wifi_coex hakios_dada_wifi_vcmode hakios_dada_wifi_credits hakios_dada_wifi_cycle hakios_dada_wifi_settle hakios_dada_wifi_skip_nss hakios_dada_wifi_idle_ps hakios_dada_wifi_hw_mode hakios_dada_wifi_sar hakios_dada_wifi_passive hakios_dada_wifi_nm_modem hakios_dada_wifi_just_cycled hakios_dada_wifi_features hakios_dada_wifi_no_cbc memcmp memcpy memmove memset strcmp strncmp strlen strnlen strchr strrchr strncpy strlcpy strlcat strtoul bzero
 	snprintf vsnprintf __stack_chk_fail __stack_chk_guard"
 nm -u out/all.o | sed 's/^_//' | sort -u > out/undefined.txt
 missing=

@@ -32,6 +32,7 @@ arm64e, iOS 26 and dada support added.
 | `kernel/` | `xnu-12377.121.6-dada.patch`: every kernel change against Apple's xnu-12377.121.6; `apply.sh` makes the kernel tree | APSL 2.0 |
 | `base/` | HakiOS kernel repository with our changes: EFI loader (`xnuloader/`), build and flashing tools (`tools/dada-*.sh`), device configs, docs | HakiOS's (APSL 2.0) |
 | `userland/` | HakiOS user space with our changes: iOS 26 bring-up, injection, Metal plug-in, audio HAL plug-in | HakiOS's (APSL 2.0) |
+| `uefi-dada/` | dada's UEFI: our patch to 7Night-kqx/uefi-dada (starts our XNU loader), `apply.sh`, build environment Dockerfile | BSD-2-Clause-Patent |
 | `gpu2/` | GPU path: patches to metal2vulkan, UniXNU NativeMetal and Mesa Turnip, plus build scripts | Each patch keeps the licence of the project it changes (see NOTICE.md) |
 | `tools/` | `export-from-work.sh` re-exports this repository from the working trees; `check-publishable.sh` looks for anything that must not be published before a commit | MIT |
 
@@ -47,6 +48,7 @@ This repository contains no binaries or firmware from Apple, Qualcomm, Xiaomi or
 - [metal2vulkan](https://github.com/steelbrain/metal2vulkan): the Metal-to-Vulkan translation layer
 - [Mesa](https://mesa3d.org/) (Turnip / freedreno)
 - [Project Silicium / Mu-Silicium](https://github.com/Project-Silicium/Mu-Silicium)
+- [uefi-dada](https://github.com/7Night-kqx/uefi-dada): the Mu-Silicium port to the Xiaomi 15
 - Linux's msm, ath12k and qcom drivers: reference for register layouts and bring-up order
 
 The drivers are written from Linux's public descriptions. See NOTICE.md for details.

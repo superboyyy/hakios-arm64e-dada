@@ -14,6 +14,12 @@
 - `bsd/miscfs/apfs/libzbitmap/`, `apfs_zbitmap.c`: libzbitmap, GPL-2.0+ OR MIT, taken under MIT (Corellium LLC)
 - `bsd/dev/hakios_mhi_boot.c` and other files marked so: from UniXNU, BSD-2-Clause-Patent
 
+## UEFI (uefi-dada/)
+
+`uefi-dada/uefi-dada.patch` changes [7Night-kqx/uefi-dada](https://github.com/7Night-kqx/uefi-dada) (Mu-Silicium,
+BSD-2-Clause-Patent) and is distributed under the same licence; `apply.sh`, `Dockerfile` and the README there are
+MIT like `tools/`. The device drivers that tree builds with (its `Binaries` submodule) are not in this repository.
+
 ## GPU patches (gpu2/)
 
 Each patch is distributed under the licence of the project it changes:

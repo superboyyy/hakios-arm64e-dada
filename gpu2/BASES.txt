@@ -1,4 +1,4 @@
 metal2vulkan  base 720ef1c (github.com/... metal2vulkan, pinned by Data A Live), head b90cf51
 nativemetal   base c6d29ca (UniXNU AdrenoMetal import), head 9ac8093
 mesa          base 85fda3b (Mesa main)
-xnu           base xnu-12377.121.6, head aa300be
+xnu           base xnu-12377.121.6, head 63b816f

@@ -3965,10 +3965,10 @@ index 0000000..f7ea75d
 +}
 diff --git a/bsd/dev/hakios_dada_camera.c b/bsd/dev/hakios_dada_camera.c
 new file mode 100644
-index 0000000..a13b225
+index 0000000..397f4cf
 --- /dev/null
 +++ b/bsd/dev/hakios_dada_camera.c
-@@ -0,0 +1,393 @@
+@@ -0,0 +1,431 @@
 +/*
 + * The Xiaomi 15's (dada) cameras, first steps. Boot-arg dadacam=1: the wide camera's sensor (OmniVision OVX9100,
 + * Android's camera 0, DT qcom,cam-sensor0) powered up as its module file says, its chip ID read, powered down again.
@@ -4218,8 +4218,16 @@ index 0000000..a13b225
 +		return true;
 +	}
 +	wr(mclkcc + 0x40f8, rd(mclkcc + 0x40f8) | 1);   /* the controller's always-on sleep clock (critical in mainline) */
++	/*
++	 * Two registers of the controller's that neither mainline nor our earlier dumps (0x4000..0x40ff) covered: Android has
++	 * 0x4100 = 0xf and 0x410c = 0x3 while its camera runs (regmap dump, 31 Oct) -- by the look of them the MCLK outputs'
++	 * enables. Here: as Android's.
++	 */
++	say("MCLK controller before: 0x4100 %#x 0x410c %#x\n", rd(mclkcc + 0x4100), rd(mclkcc + 0x410c));
++	wr(mclkcc + 0x4100, 0xf);
++	wr(mclkcc + 0x410c, 0x3);
 +	wr(mclkcc + MCLK1_CMD, rd(mclkcc + MCLK1_CMD) | 2);     /* the root forced on */
-+	wr(mclkcc + MCLK1_CFG, 0x1);                    /* the crystal, divided by 1 */
++	wr(mclkcc + MCLK1_CFG, 0x100001);               /* the crystal, divided by 1 (bit 20 kept, as Android has it: 0x00100001) */
 +	wr(mclkcc + MCLK1_CMD, rd(mclkcc + MCLK1_CMD) | 1);
 +	for (int i = 0; i < 100 && (rd(mclkcc + MCLK1_CMD) & 1); i++) {
 +		us(10);
@@ -4327,7 +4335,37 @@ index 0000000..a13b225
 +			say("MX at %u: %s\n", mmcx, hakios_rpmh_level("mx.lvl", mmcx) ? "voted" : "NOT VOTED");
 +		}
 +	}
++	{
++		/*
++		 * The MCLK controller's crystal: Android's clock tree has it as xo_board -> xo_pad -> bi_tcxo, and bi_tcxo is an RPMh
++		 * clock (clk-rpmh ARC "xo.lvl", level 3 = on) that its users vote for. Without the vote no MCLK branch ever ran.
++		 */
++		extern bool hakios_rpmh_write(const char *name, uint32_t value);
++
++		say("XO for the camera (xo.lvl 3): %s\n", hakios_rpmh_write("xo.lvl", 3) ? "voted" : "NOT VOTED");
++	}
 +	gcc_camera_branches();
++	{
++		/*
++		 * The camera's top power domain (camcc titan_top_gdsc, GDSCR 0x1134c; spec: clear bit 0, wait for CFG_GDSCR 0x11350
++		 * bit 16 POWER_ON): with Android's camera running the whole camcc is up; our MCLK branches never ran without it.
++		 * Boot-arg dadacam_titan=0: not.
++		 */
++		uint32_t titan = 1;
++
++		(void)PE_parse_boot_argn("dadacam_titan", &titan, sizeof(titan));
++		if (titan) {
++			vm_offset_t camcc = ml_io_map(0x0ade0000UL, 0x20000);
++			uint32_t before = rd(camcc + 0x1134c);
++
++			wr(camcc + 0x1134c, before & ~1u);
++			for (int i = 0; i < 200 && !(rd(camcc + 0x11350) & (1u << 16)); i++) {
++				us(10);
++			}
++			say("titan_top_gdsc: %#x -> %#x, cfg %#x (%s)\n", before, rd(camcc + 0x1134c), rd(camcc + 0x11350),
++			    (rd(camcc + 0x11350) & (1u << 16)) ? "ON" : "NOT ON");
++		}
++	}
 +	ok = mclk(true) && ok;
 +	us(1000);
 +	pin_out(PIN_RESET, true);
@@ -11082,10 +11120,10 @@ index 0000000..0e42505
 +}
 diff --git a/bsd/dev/hakios_dada_wifi.c b/bsd/dev/hakios_dada_wifi.c
 new file mode 100644
-index 0000000..d366b46
+index 0000000..20aaec8
 --- /dev/null
 +++ b/bsd/dev/hakios_dada_wifi.c
-@@ -0,0 +1,3565 @@
+@@ -0,0 +1,3709 @@
 +/*
 + * The Xiaomi 15's (dada) Wi-Fi: Qualcomm's "peach" (FastConnect 7900, PCI 17cb:110e) on the SoC's PCIe 0, step by
 + * step, from what Android's device tree for dada says (pcie@1c00000 "qcom,pci-msm", cnss "qcom,cnss-peach") and
@@ -11612,6 +11650,21 @@ index 0000000..d366b46
 +		for (unsigned i = 0; want && !sent && i < sizeof(pdc) / sizeof(pdc[0]); i++) {
 +			say("WLAN PDC: %s: %s\n", pdc[i], hakios_aop_send(pdc[i]) ? "taken" : "NOT TAKEN");
 +		}
++		/*
++		 * dadawifi_pdc=2: and the radio rails' voltages Android's cnss sets after target capability, from the firmware's
++		 * OL CPR table (cnss_aop_ol_cpr_cfg_setup; its IPC log at 5.95 s): what the PDC moves s5f/s4d/s7i/s3g to when the
++		 * chip asks for its radio through SW_CTRL -- without them, to nothing of the chip's choosing.
++		 */
++		if (want >= 2 && !sent) {
++			static const char *const up[] = {
++				"{class: wlan_pdc, ss: rf, res: s5f.v, upval: 814}", "{class: wlan_pdc, ss: bb, res: s4d.v, upval: 822}",
++				"{class: wlan_pdc, ss: rf, res: s7i.v, upval: 1314}", "{class: wlan_pdc, ss: rf, res: s3g.v, upval: 1866}",
++			};
++
++			for (unsigned i = 0; i < sizeof(up) / sizeof(up[0]); i++) {
++				say("WLAN PDC: %s: %s\n", up[i], hakios_aop_send(up[i]) ? "taken" : "NOT TAKEN");
++			}
++		}
 +		sent = true;
 +	}
 +	/* the chip's crystal clock: RPMh's RF_CLK1 (clk-rpmh "clka1", what the BT node names bt_rf_clk1); and the
@@ -11894,6 +11947,31 @@ index 0000000..d366b46
 +	say("the endpoint: ID %#x, class %#x, BAR0 %#x\n", rd(conf), rd(conf + 8), rd(conf + 0x10));
 +	if ((rd(conf) & 0xffff) != 0x17cb) {
 +		return;
++	}
++	/*
++	 * LTR and L1 substates as Android has them while its Wi-Fi works (config space read from /sys/bus/pci, 30 Oct): both
++	 * ends with LTR enabled (device control 2 bit 10), L1SS control 1 with the LTR L1.2 threshold 0x40df.... (scale 2,
++	 * value 0xdf) -- the firmware checks it ("Invalid LTR threshold programmed by PCIe RC - PANIC"); ours were left zero.
++	 * Boot-arg dadawifi_ltr=1: LTR and the threshold; =2: also ASPM L0s/L1 and the four L1SS enables, as Android's
++	 * (endpoint link control 0x43, L1SS control 1 0x40df000f; root port 0x4b / 0x40df460f).
++	 */
++	{
++		uint32_t ltr = 0;
++
++		(void)PE_parse_boot_argn("dadawifi_ltr", &ltr, sizeof(ltr));
++		if (ltr != 0) {
++			wr(dbi + 0x98, rd(dbi + 0x98) | 1u << 10);                       /* root port: LTR */
++			wr(conf + 0x98, rd(conf + 0x98) | 1u << 10);                     /* endpoint: LTR */
++			wr(dbi + 0x184, (rd(dbi + 0x184) & 0x0000fff0u) | 0x40df0000u | (ltr >= 2 ? 0xfu : 0));
++			wr(conf + 0x204, (rd(conf + 0x204) & 0x0000fff0u) | 0x40df0000u | (ltr >= 2 ? 0xfu : 0));
++			if (ltr >= 2) {
++				wr(dbi + DBI_LINK_CONTROL, rd(dbi + DBI_LINK_CONTROL) | 3u);
++				wr(conf + 0x80, rd(conf + 0x80) | 3u);
++			}
++			say("LTR/L1SS as Android (dadawifi_ltr=%u): root port devctl2 %#x l1ss %#x lnkctl %#x; endpoint devctl2 %#x "
++			    "l1ss %#x lnkctl %#x\n", ltr, rd(dbi + 0x98), rd(dbi + 0x184), rd(dbi + DBI_LINK_CONTROL), rd(conf + 0x98),
++			    rd(conf + 0x204), rd(conf + 0x80));
++		}
 +	}
 +	/*
 +	 * BAR0 (64-bit memory): sized, placed in the controller's memory window (the device tree's ranges: 0x40300000,
@@ -14329,6 +14407,86 @@ index 0000000..d366b46
 +	return vc;
 +}
 +
++/* cld3's coex configuration right after a vdev is created (tools/mk-ath12k.sh 28), boot-arg dadawifi_coex=1 */
++int hakios_dada_wifi_coex(void);
++
++int
++hakios_dada_wifi_coex(void)
++{
++	uint32_t on = 0;
++
++	(void)PE_parse_boot_argn("dadawifi_coex", &on, sizeof(on));
++	if (on) {
++		say("coex configuration sent after the vdev's creation (as cld3's ini defaults)\n");
++	}
++	return on != 0;
++}
++
++/*
++ * At the hang (tools/mk-ath12k.sh 29), boot-arg dadawifi_solrddm=1: host SOL (gpio202, the cnss node's wlan-host-sol-gpio)
++ * driven high, which makes the firmware crash and dump (cnss_pci_assert_host_sol); dev SOL (gpio203) watched for its answer.
++ * The dump is read by rddm_scan() once MHI says RDDM. True: done (no restart).
++ */
++int hakios_dada_wifi_sol_crash(void);
++
++int
++hakios_dada_wifi_sol_crash(void)
++{
++	uint32_t on = 0;
++
++	if (!PE_parse_boot_argn("dadawifi_solrddm", &on, sizeof(on)) || on == 0 || tlmm == 0) {
++		return 0;
++	}
++	say("stuck: host SOL (gpio202) high to make the firmware dump; dev SOL (gpio203) reads %u\n", rd(tlmm + 0x1000UL * 203 + 4) & 1);
++	pin(202, 1u | 1u << 6 | 1u << 9, 1);
++	for (unsigned i = 0; i < 30; i++) {
++		ms(100);
++		if (rd(tlmm + 0x1000UL * 203 + 4) & 1) {
++			say("stuck: dev SOL went high after %u ms: the firmware answers\n", (i + 1) * 100);
++			break;
++		}
++	}
++	say("stuck: host SOL cfg %#x io %#x; dev SOL %u\n", rd(tlmm + 0x1000UL * 202), rd(tlmm + 0x1000UL * 202 + 4),
++	    rd(tlmm + 0x1000UL * 203 + 4) & 1);
++	/*
++	 * The link goes down behind the dump (cnss: "expecting link down"), and the driver's next register read over it ended the
++	 * whole system (w151a). So nothing of the chip is touched from here: the dump is read where the chip wrote it, in our
++	 * memory (the RDDM vectors MHI programmed at power-up), and this thread -- the driver's -- never returns to it.
++	 */
++	ms(5000);
++	say("stuck: 5 s after host SOL: reading the dump from our memory\n");
++	rddm_scan();
++	for (;;) {
++		ms(60000);
++	}
++	return 1;
++}
++
++/* the calibration's power cycle cold, as Android's (WLAN_EN down, the link trained again): boot-arg dadawifi_cbccold=1 */
++int hakios_dada_wifi_cbc_cold(void);
++
++int
++hakios_dada_wifi_cbc_cold(void)
++{
++	uint32_t on = 0;
++
++	(void)PE_parse_boot_argn("dadawifi_cbccold", &on, sizeof(on));
++	if (on) {
++		say("cbc: the chip power-cycled cold between calibration and mission mode, as Android (%s the power-down)\n",
++		    on == 2 ? "after" : on == 3 ? "3 s after OFF, before" : "before");
++	}
++	return (int)on;
++}
++
++/* whether MHI has said RDDM since `since' (ms, now_ms()): the calibration firmware's own dump begun (dadawifi_cbccold=4) */
++int hakios_dada_wifi_rddm_seen(uint64_t since);
++
++int
++hakios_dada_wifi_rddm_seen(uint64_t since)
++{
++	return rddm_at != 0 && rddm_at >= since;
++}
++
 +uint64_t hakios_dada_wifi_features(uint64_t own);
 +
 +uint64_t
@@ -14406,6 +14564,20 @@ index 0000000..d366b46
 +
 +	wifi_just_cycled = 1;
 +
++	/*
++	 * A live chip (the calibration firmware just told OFF) may still have its own transactions under way -- MSI writes, DMA:
++	 * cut by WLAN_EN they killed the whole SoC about half the time (w163a, w168a, w170a, w173a), where a hung chip's never
++	 * did. Bus mastering off first, then a moment, then the cut.
++	 */
++	{
++		uint32_t command = 0;
++
++		if (ep_conf != 0 && cfg_read(0x04, 2, &command) == 0) {
++			(void)cfg_write(0x04, 2, command & ~4u);
++			ms(10);
++			say("ath12k: the chip's bus mastering off before the cut (command %#x -> %#x)\n", command, command & ~4u);
++		}
++	}
 +	say("ath12k: the chip is power-cycled (WLAN_EN) and its link trained again\n");
 +	link_up();
 +	if (ep_mhi == 0 || ep_conf == 0) {
@@ -14416,6 +14588,16 @@ index 0000000..d366b46
 +		(void)cfg_write(0x80000008, 2, ctl & ~0x7000u);
 +	}
 +	say("ath12k: the chip is back: MHI status %#x, device control %#x\n", rd(ep_mhi + 0x48), ctl & ~0x7000u);
++	say("ath12k: the cycle returns\n");
++}
++
++/* a mark from the driver's own code (tools/ath12k-cbc.py), said through this file's log rather than the shim's */
++void hakios_dada_wifi_note(const char *what);
++
++void
++hakios_dada_wifi_note(const char *what)
++{
++	say("note: %s\n", what);
 +}
 +
 +static void
@@ -21093,10 +21275,10 @@ index 0000000..2ec77c8
 +}
 diff --git a/bsd/dev/redwood_adsp.c b/bsd/dev/redwood_adsp.c
 new file mode 100644
-index 0000000..a24f59d
+index 0000000..3d6261c
 --- /dev/null
 +++ b/bsd/dev/redwood_adsp.c
-@@ -0,0 +1,4775 @@
+@@ -0,0 +1,4794 @@
 +/*
 + * The audio DSP of the POCO X5 Pro (redwood), started, and spoken to: step 1 of sound. Every
 + * address below belongs to this phone, and nothing here is touched unless a boot-arg asks for it.
@@ -25726,6 +25908,25 @@ index 0000000..a24f59d
 +	PE_parse_boot_argn("dadampss_cx", &cx_level, sizeof(cx_level));
 +	printf("mpss: CX at %u %s, MSS %s\n", cx_level, hakios_rpmh_level("cx.lvl", cx_level) ? "voted" : "NOT VOTED",
 +	    hakios_rpmh_level("mss.lvl", 320) ? "voted" : "NOT VOTED");
++	{
++		/*
++		 * The rails and clocks the Wi-Fi's link_up() votes (RF S-rails s5f/s3g/s7i, the BB rail s4d, L3F/L2F, RF_CLK1 and
++		 * LN_BB_CLK): the modem came up every time they were voted before it (the Wi-Fi thread at ~40 s, w130m/w132m/w142m)
++		 * and never once the Wi-Fi waited for the modem instead (w140m..w144m). dadampss_rails=0: not.
++		 */
++		static const struct { const char *name; uint32_t mv, mode; } rails[] = {
++			{ "ldof3", 1800, 7 }, { "ldof2", 1200, 7 }, { "smpd4", 876, 0 }, { "smpf5", 876, 0 }, { "smpg3", 1860, 0 },
++			{ "smpi7", 1312, 0 }, { "clka1", 0, 0 }, { "clka3", 0, 0 },
++		};
++		uint32_t on = 1;
++
++		PE_parse_boot_argn("dadampss_rails", &on, sizeof(on));
++		for (unsigned i = 0; on && i < sizeof(rails) / sizeof(rails[0]); i++) {
++			if (!hakios_rpmh_regulator(rails[i].name, rails[i].mv, true, rails[i].mode)) {
++				printf("mpss: %s NOT VOTED\n", rails[i].name);
++			}
++		}
++	}
 +	printf("mpss: AOP: %s\n", mailbox_send("{class: image, res: load_state, name: modem, val: on}") ? "told" : "NOT TOLD");
 +	(void)mpss_our_item();
 +	if ((!option("dadampss_nodtb") && !mpss_image("modem_dtb", MPSS_DTB_PAS, MPSS_DTB_MEM, MPSS_DTB_MEM_SIZE) &&

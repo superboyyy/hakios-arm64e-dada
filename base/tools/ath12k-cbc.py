@@ -139,6 +139,7 @@ static bool nw_cbc(struct ath12k_base *ab)
 	 * As cnss2: OFF, and the device powered down and up (the calibration firmware is done: it goes to RDDM by itself
 	 * when it is left on, run wifi37). It boots again, told cal_done 1.
 	 */
+	{ extern volatile int nw_trace; extern int hakios_dada_wifi_cbc_cold(void); if (hakios_dada_wifi_cbc_cold()) nw_trace = 1; }
 	ret = ath12k_qmi_wlanfw_mode_send(ab, ATH12K_FIRMWARE_MODE_OFF);
 	if (ret < 0)
 		ath12k_warn(ab, "cbc: mode off: %d\n", ret);
@@ -147,7 +148,73 @@ static bool nw_cbc(struct ath12k_base *ab)
 	ath12k_info(ab, "cbc: the device powered down and up (cal_done %u)\n", ab->qmi.cal_done);
 	/* ath12k_pci_power_down does nothing before the driver has started (ath12k_pci_start sets the flag) */
 	set_bit(ATH12K_PCI_FLAG_INIT_DONE, &ath12k_pci_priv(ab)->flags);
+	/*
+	 * Android goes further here: WLAN_EN low, every regulator off and on again, WLAN_EN high, the link trained afresh
+	 * (cnss "WLAN_EN Value: 0" .. "1", 105 ms) -- a cold chip for mission mode, where ours stayed warm. Boot-arg
+	 * dadawifi_cbccold=1: the same, through the stuck detector's power cycle (hakios_dada_wifi_cycle) -- BEFORE the
+	 * driver's power-down, in that order as the stuck detector does it (after it, the whole SoC stalled: w159a).
+	 */
+	{
+		extern int hakios_dada_wifi_cbc_cold(void);
+		extern void hakios_dada_wifi_cycle(void);
+
+		if (hakios_dada_wifi_cbc_cold() == 4) {
+			/* =4: wait for the calibration firmware's own dump to begin (MHI says RDDM) and give it 2 s to end, then cut */
+			extern int hakios_dada_wifi_rddm_seen(u64);
+			u64 from = lx_now_ms();
+			int waited = 0;
+
+			while (!hakios_dada_wifi_rddm_seen(from) && waited < 10000) {
+				msleep(100);
+				waited += 100;
+			}
+			ath12k_info(ab, "cbc: the calibration firmware's dump %s after %d ms; 2 s more, then the cold cycle\n",
+				    hakios_dada_wifi_rddm_seen(from) ? "began" : "NEVER BEGAN", waited);
+			msleep(2000);
+			hakios_dada_wifi_cycle();
+		}
+		{ extern volatile int nw_quiet; if (hakios_dada_wifi_cbc_cold()) nw_quiet = 1; }	/* no handler reads the chip until the power-down returns */
+		if (hakios_dada_wifi_cbc_cold() == 3) {
+			/* =3: first let the calibration firmware finish what it does by itself after OFF (its RDDM into our memory),
+			 * the dispatcher serving it, then cut: the cut mid-DMA is what =1 and =2 died of (w163a, w165) */
+			msleep(3000);
+			hakios_dada_wifi_cycle();
+		}
+		if (hakios_dada_wifi_cbc_cold() == 1) {
+			/* =1: no idle time for the chip anywhere (left idle -- the calibration firmware after OFF, the boot ROM after the
+			 * cycle -- it seems to reset itself and the dropped link takes the SoC: w168a, w177a, w179a, w180a); Android is
+			 * through all of it in 105 ms */
+			hakios_dada_wifi_cycle();
+			ath12k_pci_priv(ab)->register_window = 0;
+		}
+		/* the just-cycled chip's boot ROM given time before the power-down's MHI reset reaches it: written at once it
+		 * killed the SoC (w167a, w169a); the stuck detector's reset, which survives, comes later from a queued work */
+		if (hakios_dada_wifi_cbc_cold() >= 3) {
+			{ extern void hakios_dada_wifi_note(const char *); hakios_dada_wifi_note("cbc: cold: the cycle returned; 1.5 s"); }
+			ath12k_info(ab, "cbc: cold: the cycle returned; 1.5 s\n");
+			msleep(1500);
+			{ extern void hakios_dada_wifi_note(const char *); hakios_dada_wifi_note("cbc: cold: 1.5 s later"); }
+			ath12k_info(ab, "cbc: cold: 1.5 s later; the power-down next\n");
+			/* the chip's register window is back at its reset value after the cycle; the driver's cache of it is not, and
+			 * the power-down's reads through the stale window came back all ones (w172a) */
+			ath12k_pci_priv(ab)->register_window = 0;
+		}
+	}
+	ath12k_info(ab, "cbc: the power-down\n");
 	ath12k_hif_power_down(ab, false);
+	ath12k_info(ab, "cbc: the power-down returned\n");
+	{ extern volatile int nw_quiet; nw_quiet = 0; }
+	/* dadawifi_cbccold=2: after the power-down instead (its MHI reset stops the calibration firmware's own DMA into our
+	 * memory first: cut by the cycle above while it ran, the whole SoC died right after the link came back, w163a) */
+	{
+		extern int hakios_dada_wifi_cbc_cold(void);
+		extern void hakios_dada_wifi_cycle(void);
+
+		if (hakios_dada_wifi_cbc_cold() == 2) {
+			msleep(200);
+			hakios_dada_wifi_cycle();
+		}
+	}
 	msleep(100);
 	ret = ath12k_hif_power_up(ab);
 	if (ret)

@@ -1,3 +1,19 @@
+63b816f 2026-10-31 dada camera: titan_top_gdsc on before the MCLK (dadacam_titan)
+70b4297 2026-10-31 dada camera: the MCLK controller's 0x4100/0x410c as Android has them with the camera running
+ccb858a 2026-10-30 dada wifi: marks around the CBC cold cycle through our own log
+9f66a81 2026-10-30 dada wifi: bus mastering off before the cold cycle's cut
+46c9335 2026-10-30 dada wifi: dadawifi_cbccold=4, the cold cycle after the calibration firmware's own dump
+d2e4a66 2026-10-30 dada wifi: dadawifi_cbccold=3, the cold cycle 3 s after the calibration firmware's OFF
+3867bcb 2026-10-30 dada wifi: dadawifi_ltr=1/2, LTR and L1 substates as Android has them
+30ea063 2026-10-30 dada wifi: dadawifi_cbccold=2, the cold cycle after the driver's power-down
+596ed13 2026-10-30 dada wifi: dadawifi_pdc=2, Android's four WLAN PDC upvals (OL CPR)
+335a0eb 2026-10-30 dada wifi: dadawifi_cbccold=1, a cold power cycle between calibration and mission mode as Android
+efd4233 2026-10-30 dada camera: MCLK1's CFG as Android has it (0x00100001)
+3672e4e 2026-10-30 dada camera: vote the crystal (xo.lvl 3) the MCLK controller hangs from
+0aae61d 2026-10-30 dada wifi: after host SOL, nothing of the chip touched; the dump read from our memory
+c7b6566 2026-10-30 dada wifi: dadawifi_solrddm=1, the hung firmware made to dump through host SOL
+0827085 2026-10-30 dada wifi: dadawifi_coex=1 (cld3's coex configuration after vdev create)
+c07d9c0 2026-10-30 dada modem: the RF rails and clocks the Wi-Fi's link votes, voted before the modem too
 aa300be 2026-10-30 dada modem: others' IPCC rings left pending until the modem is up (clearing them from the start kept it from READY)
 fd2894d 2026-10-30 dada mpss: GLINK + QRTR with the modem (dadampss_link, default 1)
 6972025 2026-10-30 dada wifi: dadawifi_vcmode=N (pdev param 0x9a, cld3's gConfigVCmode)

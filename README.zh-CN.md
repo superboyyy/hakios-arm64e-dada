@@ -29,6 +29,7 @@
 | `kernel/` | `xnu-12377.121.6-dada.patch`：相对 Apple xnu-12377.121.6 的全部内核修改；`apply.sh` 用来生成内核源码树 | APSL 2.0 |
 | `base/` | HakiOS 内核仓库及我们的修改：EFI 引导器（`xnuloader/`）、构建与烧录工具（`tools/dada-*.sh`）、设备配置、文档 | 沿用 HakiOS（APSL 2.0） |
 | `userland/` | HakiOS 用户态及我们的修改：iOS 26 启动、注入、Metal 插件、音频 HAL 插件 | 沿用 HakiOS |
+| `uefi-dada/` | dada 的 UEFI：对 7Night-kqx/uefi-dada 的补丁（启动我们的 XNU 引导器）、`apply.sh`、构建环境 Dockerfile | BSD-2-Clause-Patent |
 | `gpu2/` | GPU 路线：分别对 metal2vulkan、UniXNU NativeMetal、Mesa Turnip 的补丁，以及构建脚本 | 各补丁沿用所改项目的许可证，见 NOTICE.md |
 | `tools/` | `export-from-work.sh` 从工作目录重新导出本仓库；`check-publishable.sh` 在提交前检查有没有不能公开的文件 | MIT |
 
@@ -44,6 +45,7 @@
 - [metal2vulkan](https://github.com/steelbrain/metal2vulkan)：Metal 到 Vulkan 的翻译层
 - [Mesa](https://mesa3d.org/)（Turnip / freedreno）
 - [Project Silicium / Mu-Silicium](https://github.com/Project-Silicium/Mu-Silicium)
+- [uefi-dada](https://github.com/7Night-kqx/uefi-dada)：小米 15 的 Mu-Silicium 移植
 - Linux 内核的 msm、ath12k、qcom 驱动：寄存器布局和上电顺序参考
 
 驱动是参照 Linux 的公开资料编写的。具体说明见 NOTICE.md。
